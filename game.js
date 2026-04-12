@@ -1,6 +1,6 @@
-// Updated game.js with character movement, obstacles, and collision detection
+// Updated game.js with corrected collision detection
 
-// --- Three.js setup ------------------------------------------------------------
+// --- Three.js setup --------------------------------------------------------
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -46,10 +46,12 @@ window.addEventListener('keyup', e => {
 });
 
 // --- Collision detection ---------------------------------------------------
-function checkCollision(newPos) {
+function checkCollision(move) {
+  // Current bounding box of the player
   const playerBox = new THREE.Box3().setFromObject(player);
+  // Bounding box at the position after applying the move
   const tempBox = new THREE.Box3().setFromObject(player.clone());
-  tempBox.translate(newPos.clone().sub(player.position));
+  tempBox.translate(move); // Move the temporary box by the intended displacement
   for (const obs of obstacles) {
     const obsBox = new THREE.Box3().setFromObject(obs);
     if (tempBox.intersectsBox(obsBox)) return true;
@@ -57,7 +59,7 @@ function checkCollision(newPos) {
   return false;
 }
 
-// --- Animation loop --------------------------------------------------------
+// --- Animation loop -------------------------------------------------------
 function animate() {
   requestAnimationFrame(animate);
 
