@@ -1,37 +1,94 @@
+// Updated game.js with corrected collision detection
+
+// --- Three.js setup --------------------------------------------------------
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-const geometry = new THREE.BoxGeometry();
-const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-const cube = new THREE.Mesh(geometry, material);
-scene.add(cube);
+// --- Player ---------------------------------------------------------------
+const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
+const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+const player = new THREE.Mesh(playerGeometry, playerMaterial);
+player.position.set(0, 0.5, 0);
+scene.add(player);
 
-camera.position.z = 5;
+// --- Obstacles ------------------------------------------------------------
+const obstacleGeometry = new THREE.BoxGeometry(1, 1, 1);
+const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+const obstacles = [];
+const obstaclePositions = [
+  { x: 3, y: 0.5, z: 0 },
+  { x: -3, y: 0.5, z: 0 },
+  { x: 0, y: 0.5, z: 3 },
+  { x: 0, y: 0.5, z: -3 },
+];
+obstaclePositions.forEach(pos => {
+  const obs = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+  obs.position.set(pos.x, pos.y, pos.z);
+  scene.add(obs);
+  obstacles.push(obs);
+});
 
-const hpElement = document.getElementById('hp');
-const hpFill = document.getElementById('hp-fill');
-let hp = 100;
+// --- Camera ---------------------------------------------------------------
+camera.position.set(0, 5, 10);
+camera.lookAt(player.position);
 
+// --- Movement handling -----------------------------------------------------
+const moveSpeed = 0.1;
+const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+window.addEventListener('keydown', e => {
+  if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+});
+window.addEventListener('keyup', e => {
+  if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+});
+
+// --- Collision detection ---------------------------------------------------
+function checkCollision(move) {
+  // Current bounding box of the player
+  const playerBox = new THREE.Box3().setFromObject(player);
+  // Bounding box at the position after applying the move
+  const tempBox = new THREE.Box3().setFromObject(player.clone());
+  tempBox.translate(move); // Move the temporary box by the intended displacement
+  for (const obs of obstacles) {
+    const obsBox = new THREE.Box3().setFromObject(obs);
+    if (tempBox.intersectsBox(obsBox)) return true;
+  }
+  return false;
+}
+
+// --- Animation loop -------------------------------------------------------
 function animate() {
-    requestAnimationFrame(animate);
-    cube.rotation.x += 0.01;
-    cube.rotation.y += 0.01;
-    hp -= 0.1;
-    if (hp < 0) hp = 0;
-    hpElement.textContent = Math.floor(hp) + '%';
-    hpFill.style.width = hp + '%';
-    renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+
+  const dir = new THREE.Vector3();
+  if (keys.ArrowUp) dir.z -= 1;
+  if (keys.ArrowDown) dir.z += 1;
+  if (keys.ArrowLeft) dir.x -= 1;
+  if (keys.ArrowRight) dir.x += 1;
+  if (dir.lengthSq() > 0) {
+    dir.normalize();
+    const move = dir.clone().multiplyScalar(moveSpeed);
+    if (!checkCollision(move)) {
+      player.position.add(move);
+    }
+  }
+
+  camera.position.x = player.position.x;
+  camera.position.z = player.position.z + 10;
+  camera.lookAt(player.position);
+
+  renderer.render(scene, camera);
 }
 
 window.addEventListener('resize', () => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    renderer.setSize(width, height);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  renderer.setSize(width, height);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
 });
 
 animate();
