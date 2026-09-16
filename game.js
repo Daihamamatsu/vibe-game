@@ -2,6 +2,8 @@
 
 // --- Three.js setup --------------------------------------------------------
 const scene = new THREE.Scene();
+// 背後の空間を水色っぽく(空色)にする
+scene.background = new THREE.Color(0x87ceeb);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -77,10 +79,10 @@ const ISLAND_HALF_SIZE = ISLAND_SIZE / 2;
 
 const island = new THREE.Group();
 
-// 上面(草、上表面は y=0 でプレイヤー・障害物と同じ床面)
+// 上面(土、茶色っぽくする。上表面は y=0 でプレイヤー・障害物と同じ床面)
 const islandTop = new THREE.Mesh(
   new THREE.BoxGeometry(ISLAND_SIZE, 0.5, ISLAND_SIZE),
-  new THREE.MeshBasicMaterial({ color: 0x44cc44, side: THREE.DoubleSide })
+  new THREE.MeshBasicMaterial({ color: 0xa0724b, side: THREE.DoubleSide })
 );
 islandTop.position.y = -0.25;
 island.add(islandTop);
