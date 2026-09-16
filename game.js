@@ -97,6 +97,8 @@ const moveSpeed = 0.1;
 const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 window.addEventListener('keydown', e => {
   if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+  // R key: restart
+  if (e.key === 'r' || e.key === 'R') restartGame();
 });
 window.addEventListener('keyup', e => {
   if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
@@ -139,6 +141,46 @@ function updateWalkAnimation(isMoving) {
   rightArm.rotation.x = currentSwing * 0.7;
 }
 
+// --- HP system ------------------------------------------------------------
+const MAX_HP = 100;
+let hp = MAX_HP;
+let isGameOver = false;
+const hpText = document.getElementById('hp');
+const hpFill = document.getElementById('hp-fill');
+const gameOverScreen = document.getElementById('game-over');
+
+// Update HP display
+function updateHpDisplay() {
+  hpText.textContent = Math.max(0, hp);
+  hpFill.style.width = (Math.max(0, hp) / MAX_HP) * 100 + '%';
+}
+
+// Reduce player HP (game over at 0 or below)
+function damagePlayer(amount) {
+  if (isGameOver) return;
+  hp -= amount;
+  if (hp <= 0) {
+    hp = 0;
+    isGameOver = true;
+    gameOverScreen.style.display = 'block';
+  }
+  updateHpDisplay();
+}
+
+// Restart: reset HP and player state
+function restartGame() {
+  hp = MAX_HP;
+  isGameOver = false;
+  gameOverScreen.style.display = 'none';
+  player.position.set(0, 0, 0);
+  player.rotation.y = 0;
+  walkPhase = 0;
+  currentSwing = 0;
+  updateHpDisplay();
+}
+
+updateHpDisplay();
+
 // --- Collision detection ---------------------------------------------------
 function checkCollision(move) {
   // Current bounding box of the player
@@ -156,6 +198,12 @@ function checkCollision(move) {
 // --- Animation loop -------------------------------------------------------
 function animate() {
   requestAnimationFrame(animate);
+
+  // On game over, freeze updates (render only)
+  if (isGameOver) {
+    renderer.render(scene, camera);
+    return;
+  }
 
   const dir = new THREE.Vector3();
   if (keys.ArrowUp) dir.z -= 1;
