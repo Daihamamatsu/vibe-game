@@ -70,6 +70,39 @@ player.add(rightLeg);
 player.position.set(0, 0, 0);
 scene.add(player);
 
+// --- Floating island -------------------------------------------------------
+// プレイヤーが立つ島(プレイヤーは幅約 1 ユニットなので約 10 倍の 10x10)
+const ISLAND_SIZE = 10;
+const ISLAND_HALF_SIZE = ISLAND_SIZE / 2;
+
+const island = new THREE.Group();
+
+// 上面(草、上表面は y=0 でプレイヤー・障害物と同じ床面)
+const islandTop = new THREE.Mesh(
+  new THREE.BoxGeometry(ISLAND_SIZE, 0.5, ISLAND_SIZE),
+  new THREE.MeshBasicMaterial({ color: 0x44cc44, side: THREE.DoubleSide })
+);
+islandTop.position.y = -0.25;
+island.add(islandTop);
+
+// 下面(岩の逆ピラミッド、尖りを下に向けて浮遊島にする)
+const rockGeometry = new THREE.ConeGeometry(ISLAND_HALF_SIZE * Math.SQRT2, 3, 4);
+const rock = new THREE.Mesh(
+  rockGeometry,
+  new THREE.MeshBasicMaterial({ color: 0x8b5a2b, side: THREE.DoubleSide })
+);
+rock.rotateY(Math.PI / 4);  // 底辺の向きを島の辺と揃える
+rock.rotateX(Math.PI);      // 尖りを下に向けてひっくり返す
+rock.position.y = -0.5 - 1.5;
+island.add(rock);
+scene.add(island);
+
+// 落下状態
+let falling = false;
+let fallSpeed = 0;
+const GRAVITY = 0.008;   // 落下中に毎フレーム加わる垂直加速度
+const FALL_LIMIT = -25;  // 落下でゲームオーバーになる高度
+
 // --- Obstacles ------------------------------------------------------------
 const obstacleGeometry = new THREE.BoxGeometry(1, 1, 1);
 const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
@@ -176,6 +209,9 @@ function restartGame() {
   player.rotation.y = 0;
   walkPhase = 0;
   currentSwing = 0;
+  // 落下もリセット
+  falling = false;
+  fallSpeed = 0;
   // 敵もリセット
   enemy.position.set(enemyMinX, 0, ENEMY_Z);
   enemyDir = 1;
@@ -263,11 +299,12 @@ function updateEnemy() {
     enemy.rotation.y = 0;
   }
 
-  // 接触判定(バウンディングボックスの交差)
+  // 接触判定(バウンディングボックスの交差、落下中は判定しない)
   const playerBox = new THREE.Box3().setFromObject(player);
   const enemyBox = new THREE.Box3().setFromObject(enemy);
   const now = performance.now() / 1000;
-  if (playerBox.intersectsBox(enemyBox) && now - lastDamageTime > INVULN_DURATION) {
+  if (!falling && playerBox.intersectsBox(enemyBox) &&
+      now - lastDamageTime > INVULN_DURATION) {
     lastDamageTime = now;
     damagePlayer(ENEMY_DAMAGE);
     // ダメージ時のノックバック(撃墜時はゲームオーバーで固定されるためスキップ)
@@ -305,30 +342,49 @@ function animate() {
   if (keys.ArrowLeft) dir.x -= 1;
   if (keys.ArrowRight) dir.x += 1;
 
-  const isMoving = dir.lengthSq() > 0;
+  if (falling) {
+    // 落下中(移動入力は無視し、重力で加速して落下)
+    fallSpeed += GRAVITY;
+    player.position.y -= fallSpeed;
+    updateWalkAnimation(false);
+    // 落下限界高度まで落ちたらゲームオーバー
+    if (player.position.y < FALL_LIMIT) {
+      isGameOver = true;
+      gameOverScreen.style.display = 'block';
+    }
+  } else {
+    const isMoving = dir.lengthSq() > 0;
 
-  // 向き: 押している方向へ向く(障害物で止まっても向く)
-  if (isMoving) {
-    updateFacing(dir);
-  }
+    // 向き: 押している方向へ向く(障害物で止まっても向く)
+    if (isMoving) {
+      updateFacing(dir);
+    }
 
-  // 移動と歩行モーション
-  let didMove = false;
-  if (isMoving) {
-    dir.normalize();
-    const move = dir.clone().multiplyScalar(moveSpeed);
-    if (!checkCollision(move)) {
-      player.position.add(move);
-      didMove = true;
+    // 移動と歩行モーション
+    let didMove = false;
+    if (isMoving) {
+      dir.normalize();
+      const move = dir.clone().multiplyScalar(moveSpeed);
+      if (!checkCollision(move)) {
+        player.position.add(move);
+        didMove = true;
+      }
+    }
+    // 実際に動いている時のみ歩く(ぶつかって止まった時は歩行を止める)
+    updateWalkAnimation(didMove);
+
+    // 島の端判定: 島からはみ出したら落下開始
+    if (Math.abs(player.position.x) > ISLAND_HALF_SIZE ||
+        Math.abs(player.position.z) > ISLAND_HALF_SIZE) {
+      falling = true;
     }
   }
-  // 実際に動いている時のみ歩く(ぶつかって止まった時は歩行を止める)
-  updateWalkAnimation(didMove);
 
   // 敵のパトロールと接触ダメージ
   updateEnemy();
 
   camera.position.x = player.position.x;
+  camera.position.y = player.position.y + 5;
   camera.position.z = player.position.z + 10;
   // 体中心(y+0.8)を向く
   camera.lookAt(player.position.x, player.position.y + 0.8, player.position.z);
