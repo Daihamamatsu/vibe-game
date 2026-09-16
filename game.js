@@ -222,6 +222,34 @@ const enemyEyeMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
 enemy.position.set(enemyMinX, 0, ENEMY_Z);
 scene.add(enemy);
 
+// ノックバック: プレイヤーを敵から離れる方向に一定距離押し出す
+// (押し出し先が障害物に衝突しないよう既存の衝突判定でチェック)
+const KNOCKBACK_DISTANCE = 1.2;
+function applyKnockback(fromPos) {
+  const dx = player.position.x - fromPos.x;
+  const dz = player.position.z - fromPos.z;
+  const len = Math.sqrt(dx * dx + dz * dz);
+  let dirX, dirZ;
+  if (len < 0.0001) {
+    // 完全に同じ位置という限界ケース: 敵の進行方向へ押し出す
+    dirX = enemyDir;
+    dirZ = 0;
+  } else {
+    dirX = dx / len;
+    dirZ = dz / len;
+  }
+  const kb = new THREE.Vector3(
+    dirX * KNOCKBACK_DISTANCE,
+    0,
+    dirZ * KNOCKBACK_DISTANCE
+  );
+  // 最新の位置で衝突判定する
+  player.updateMatrixWorld(true);
+  if (!checkCollision(kb)) {
+    player.position.add(kb);
+  }
+}
+
 // 敵のパトロール(範囲の両端で反転)と接触ダメージ判定
 function updateEnemy() {
   enemy.position.x += enemySpeed * enemyDir;
@@ -242,6 +270,8 @@ function updateEnemy() {
   if (playerBox.intersectsBox(enemyBox) && now - lastDamageTime > INVULN_DURATION) {
     lastDamageTime = now;
     damagePlayer(ENEMY_DAMAGE);
+    // ダメージ時のノックバック(撃墜時はゲームオーバーで固定されるためスキップ)
+    if (!isGameOver) applyKnockback(enemy.position);
   }
 }
 
