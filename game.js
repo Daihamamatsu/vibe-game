@@ -176,10 +176,74 @@ function restartGame() {
   player.rotation.y = 0;
   walkPhase = 0;
   currentSwing = 0;
+  // 敵もリセット
+  enemy.position.set(enemyMinX, 0, ENEMY_Z);
+  enemyDir = 1;
+  enemy.rotation.y = 0;
+  lastDamageTime = 0;
   updateHpDisplay();
 }
 
 updateHpDisplay();
+
+// --- Enemy (ブロック風スライム) ---------------------------------------------
+// 一定の往復ルートをパトロールし、プレイヤーと接触するとダメージを与える
+const ENEMY_Z = -1.5;
+const enemyMinX = -2.5;
+const enemyMaxX = 2.5;
+const enemySpeed = 0.03;
+const ENEMY_DAMAGE = 10;
+let enemyDir = 1;
+let lastDamageTime = 0;
+const INVULN_DURATION = 1; // ダメージ直後の無敵時間(秒)
+
+const enemy = new THREE.Group();
+
+// 体(緑)
+const enemyBody = new THREE.Mesh(
+  new THREE.BoxGeometry(0.8, 0.8, 0.8),
+  new THREE.MeshBasicMaterial({ color: 0x44cc44 })
+);
+enemyBody.position.set(0, 0.4, 0);
+enemy.add(enemyBody);
+
+// 目(パトロールの向きが変わっても見えるよう ±Z の両面に配置)
+const enemyEyeGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.02);
+const enemyEyeMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+[0.405, -0.405].forEach(z => {
+  const eyeL = new THREE.Mesh(enemyEyeGeometry, enemyEyeMaterial);
+  eyeL.position.set(-0.15, 0.55, z);
+  enemy.add(eyeL);
+  const eyeR = new THREE.Mesh(enemyEyeGeometry, enemyEyeMaterial);
+  eyeR.position.set(0.15, 0.55, z);
+  enemy.add(eyeR);
+});
+
+enemy.position.set(enemyMinX, 0, ENEMY_Z);
+scene.add(enemy);
+
+// 敵のパトロール(範囲の両端で反転)と接触ダメージ判定
+function updateEnemy() {
+  enemy.position.x += enemySpeed * enemyDir;
+  if (enemy.position.x >= enemyMaxX) {
+    enemy.position.x = enemyMaxX;
+    enemyDir = -1;
+    enemy.rotation.y = Math.PI;
+  } else if (enemy.position.x <= enemyMinX) {
+    enemy.position.x = enemyMinX;
+    enemyDir = 1;
+    enemy.rotation.y = 0;
+  }
+
+  // 接触判定(バウンディングボックスの交差)
+  const playerBox = new THREE.Box3().setFromObject(player);
+  const enemyBox = new THREE.Box3().setFromObject(enemy);
+  const now = performance.now() / 1000;
+  if (playerBox.intersectsBox(enemyBox) && now - lastDamageTime > INVULN_DURATION) {
+    lastDamageTime = now;
+    damagePlayer(ENEMY_DAMAGE);
+  }
+}
 
 // --- Collision detection ---------------------------------------------------
 function checkCollision(move) {
@@ -230,6 +294,9 @@ function animate() {
   }
   // 実際に動いている時のみ歩く(ぶつかって止まった時は歩行を止める)
   updateWalkAnimation(didMove);
+
+  // 敵のパトロールと接触ダメージ
+  updateEnemy();
 
   camera.position.x = player.position.x;
   camera.position.z = player.position.z + 10;
